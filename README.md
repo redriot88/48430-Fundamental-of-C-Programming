@@ -7,16 +7,16 @@ Group Report: https://docs.google.com/document/d/1yt3ZejDWo48YKWHe_kk6SP53gmFtzm
 
 Architecture:
 
-*locker.c (main and interactive menu) - Ed
+*locker.c (main and interactive menu) - Ed (drafted)
 
-*locker.h (public prototypes and typedefs) - Ed
+*locker.h (public prototypes and typedefs) - Ed (drafted)
 
 *crypto.c/ crypto.h (PRNG; encrypt/decrypt helpers, and key derivation)
 
 *compress.c/ compress.h (compress/ decompress)
 
-*storage.c storage.h (file format, read, write, index management) - Ed
+*storage.c storage.h (file format, read, write, index management) - Ed (to be done)
 
 *utils.c /utils.h (string helpres, I/O wrappers, error handling)
 
-*makefile (function for building)
+*makefile (function for building) - Ed (drafted)
