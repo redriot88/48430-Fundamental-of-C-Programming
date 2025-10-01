@@ -12,4 +12,4 @@ Architecture:
 -compress.c/ compress.h (compress/ decompress)
 -storage.c storage.h (file format, read, write, index management) - Ed
 -utils.c /utils.h (string helpres, I/O wrappers, error handling)
--makefile (function for buidding)
+-makefile (function for building)
