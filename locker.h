@@ -1,10 +1,10 @@
 /*************************************************************************************
 Typedefs & Structs Prototypes
 **************************************************************************************/
-/*
+
 #ifndef LOCKER_H
 #define LOCKER_H
-*/
+
 #include <stdlib.h>
 /* #include <stdio.h> // don't need need this here*/
 /* #include <string.h> // don't need this here*/
@@ -61,6 +61,5 @@ void printMenu(void) {
 }
 
 
-/*
+
 endif
-*/
