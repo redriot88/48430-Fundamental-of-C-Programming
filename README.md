@@ -6,10 +6,10 @@ Project Management Tool: Kandan Board: https://student791197.monday.com/boards/2
 Group Report: https://docs.google.com/document/d/1yt3ZejDWo48YKWHe_kk6SP53gmFtzmzGuz5XfA1wd2o/edit?usp=sharing 
 
 Architecture:
--locker.c (main and interactive menu) Ed
--locker.h (public prototypes and typedefs) Ed
+-locker.c (main and interactive menu) - Ed
+-locker.h (public prototypes and typedefs) - Ed
 -crypto.c/ crypto.h (PRNG; encrypt/decrypt helpers, and key derivation)
 -compress.c/ compress.h (compress/ decompress)
--storage.c storage.h (file formate, read, write, index management) Ed
+-storage.c storage.h (file format, read, write, index management) - Ed
 -utils.c /utils.h (string helpres, I/O wrappers, error handling)
--makefile (function for buidling)
+-makefile (function for buidding)
