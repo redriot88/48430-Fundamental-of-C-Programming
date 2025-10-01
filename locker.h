@@ -45,7 +45,22 @@ void removeFile(void); /*removes file from the locker*/
 void listFile(void); /*lists files within locker*/
 void searchFile(void);/*returns list or matches*/
 void changePIN(void); /*changes master PIN or password*/
- 
+
+/*************************************************************************************
+Menu & Helper Prototypes
+**************************************************************************************/
+void printMenu(void) {
+    printf("\nLibrary Management System\n"
+           "1. Add file\n"
+           "2. Extract file\n"
+           "3. List files\n"
+           "4. Search by filename\n"
+           "5. Remove file\n"
+           "6. Change master PIN\n")
+           "q. Quit\n";
+}
+
+
 /*
 endif
 */
