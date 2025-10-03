@@ -1,65 +1,74 @@
-/*************************************************************************************
-Typedefs & Structs Prototypes
-**************************************************************************************/
-
+/**
+ * Personal Document Safe Locker - Public API (Checkpoint 1 Skeleton)
+ * Group: (ADD GROUP NUMBER)  Lab: (ADD LAB NUMBER)
+ * Build (example):
+ *   gcc -std=c11 -Wall -Wextra -pedantic -ansi -DDEBUG -o locker \
+ *       main.c locker.c storage.c crypto.c compress.c util.c
+ * Allowed standard libs only: stdio.h, stdlib.h, string.h, math.h
+ */
 #ifndef LOCKER_H
 #define LOCKER_H
 
+#include <stdio.h>
 #include <stdlib.h>
-/* #include <stdio.h> // don't need need this here*/
-/* #include <string.h> // don't need this here*/
+#include <string.h>
+
+#define LOCKER_MAGIC 0x4C4B5255u /* 'L' 'K' 'R' 'U' arbitrary */
+#define LOCKER_VERSION 1
 
 #define MAX_FILENAME 256
+#define MAX_TITLE    128
+#define MAX_PIN      32
+
+/* Flag bits */
+#define FLAG_COMPRESSED  (1u<<0)
+#define FLAG_ENCRYPTED   (1u<<1)
 
 typedef struct {
-  char filename[MAX_FILENAME]; /*original file name*/
-  unsigned long originalSize; /*original size in bytes*/
-  unsigned long storedSize; /*compressed and encrypted size*/
-  unsigned timestamp; /* epoch, not sure if we need this...*/
-  int compressed; /*compressed indicator, 1 if compressed, 0 otherwise*/
-  /* unsigned long fileOffset; //offset within storage but not sure if we need */
+    char title[MAX_TITLE];          /* logical title / filename */
+    unsigned long originalSize;     /* size before compression/encryption */
+    unsigned long storedSize;       /* size stored in locker */
+    unsigned long dataOffset;       /* offset inside locker file */
+    unsigned int flags;             /* compression/encryption flags */
 } indexEntry_t;
 
-/*if we need index struture to be stored in memory as a dynamic array*/
 typedef struct {
-  indexEntry_t *entries;
-  int count;
-  int capacity;
+    indexEntry_t *entries;
+    int count;
+    int capacity;
 } index_t;
 
-/*************************************************************************************
-Function Prototypes; this is just a draft
-**************************************************************************************/
-/*storage.c or storage.h*/
-void lockerOpen(void);
-void lockerClose(void);
+/* Accessor for global index (implemented in locker.c) */
+index_t *lockerGetIndex(void);
 
-/*Index Operations*/
-void indexLoad(void);
-void indexSave(void);
+/* Lifecycle */
+int lockerOpen(const char *lockerPath, const char *pin); /* returns 0 on success */
+int lockerClose(void);
 
-/*Main Operations*/
-void addFile(void); /*add file to the locker*/
-void extractFile(void); /*extract file from the locker*/
-void removeFile(void); /*removes file from the locker*/
-void listFile(void); /*lists files within locker*/
-void searchFile(void);/*returns list or matches*/
-void changePIN(void); /*changes master PIN or password*/
+/* Master PIN */
+int lockerChangePIN(const char *oldPin, const char *newPin);
 
-/*************************************************************************************
-Menu & Helper Prototypes
-**************************************************************************************/
-void printMenu(void) {
-    printf("\nLibrary Management System\n"
-           "1. Add file\n"
-           "2. Extract file\n"
-           "3. List files\n"
-           "4. Search by filename\n"
-           "5. Remove file\n"
-           "6. Change master PIN\n")
-           "q. Quit\n";
-}
+/* Core operations (return 0 success, non-zero error) */
+int lockerAddFile(const char *filepath, const char *title, int compressFlag, int encryptFlag);
+int lockerExtractFile(const char *title, const char *outputPath);
+int lockerRemoveFile(const char *title);
 
+/* Listing & Search */
+void lockerList(void);
+int lockerSearch(const char *pattern); /* returns matches count */
 
+/* Index persistence */
+int lockerSaveIndex(void);
+int lockerLoadIndex(void);
 
-endif
+/* Menu (interactive mode) */
+void printMenu(void);
+
+/* Debug macro */
+#ifdef DEBUG
+#define DBG(...) fprintf(stderr, "[DBG] " __VA_ARGS__)
+#else
+#define DBG(...)
+#endif
+
+#endif /* LOCKER_H */

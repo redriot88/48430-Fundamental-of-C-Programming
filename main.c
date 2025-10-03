@@ -1,59 +1,69 @@
-/*******************************************************************************
+/**
  * 48430 Fundamentals of C Programming - Assignment 3 Group Project
- * Name: Alex, Ed, Edward, Tarun.
- * Student ID: [Alex SID], 14386371, [SID rest]
- * Date of submission: 4/10/25
-*******************************************************************************/
+ * Personal Document Safe Locker (Interactive driver)
+ * Group: (ADD GROUP NUMBER)  Lab: (ADD LAB NUMBER)
+ * Build:
+ *   gcc -std=c11 -Wall -Wextra -pedantic -ansi -DDEBUG -o locker \
+ *       main.c locker.c
+ * (Later add: storage.c compress.c crypto.c util.c)
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include locker.c
-/*******************************************************************************
-Main
-*******************************************************************************/
+#include "locker.h"
+
+static void consumeLine(void) {
+  int c; while ((c=getchar())!='\n' && c!=EOF) { /* discard */ }
+}
+
 int main(void) {
-    int choice = 0;
-    char input[10];
-
-  /*
-  if (!checkMasterPIN()){
-    printf("Access denied.\n");
+  if (lockerOpen("locker.dat", "admin") != 0) {
+    printf("Failed to open locker (wrong PIN?)\n");
     return 1;
-  */
-  
-
-    while (1) {
-        printMenu();
-        printf("Enter your PIN>\n"); /*either PIN or we can have no ask for masterpassword*/
-        fflush(stdout);
-
-        if (scanf("%d", &choice) != 1) {
-            return 0; /*or we can use continue i.e.
-            printf("Invalid input.\n");
-            continue;
-            */
-        }
-        (void)getchar(); /* clear newline */
-        /*
-        if (strcmp(input, "q") == 0 || strcmp(input, "Q") == 0 {
-        printf("Exiting Personal Document Locker.\n");
-        break;
-        */
-
-        /* 
-        choice = atoi(input); 
-        */
-
-        switch (choice) {
-            case 1: addFile(); break;
-            case 2: extractFile(); break;
-            case 3: removeFile(); break;
-            case 4: listFile(); break;
-            case 5: searchFile(); break;
-            case 6: changePIN(); break;
-            case 7: quit(); return 0; /* we'll need atoi and read in q for 7 to quit, but case 7 may be redundant*/
-            default: printf("Invalid choice.\n");
-        }
+  }
+  for (;;) {
+    int choice;
+    printMenu();
+    if (scanf("%d", &choice) != 1) {
+      printf("Exiting.\n");
+      break;
     }
-    return 0;
+    consumeLine();
+    if (choice == 7) {
+      printf("Goodbye.\n");
+      break;
+    }
+    if (choice == 1) {
+      char path[256], title[128];
+      printf("Path to file: "); if (!fgets(path, sizeof path, stdin)) continue; path[strcspn(path,"\n")]=0;
+      printf("Title to store: "); if (!fgets(title, sizeof title, stdin)) continue; title[strcspn(title,"\n")]=0;
+      if (lockerAddFile(path, title, 1, 1)==0) printf("Added %s\n", title); else printf("Add failed\n");
+    } else if (choice == 2) {
+      char title[128], out[256];
+      printf("Title to extract: "); if (!fgets(title,sizeof title,stdin)) continue; title[strcspn(title,"\n")]=0;
+      printf("Output path: "); if (!fgets(out,sizeof out,stdin)) continue; out[strcspn(out,"\n")]=0;
+      if (lockerExtractFile(title, out)==0) printf("Extracted to %s\n", out); else printf("Extract failed\n");
+    } else if (choice == 3) {
+      char title[128];
+      printf("Title to remove: "); if (!fgets(title,sizeof title,stdin)) continue; title[strcspn(title,"\n")]=0;
+      if (lockerRemoveFile(title)==0) printf("Removed %s\n", title); else printf("Remove failed\n");
+    } else if (choice == 4) {
+      lockerList();
+    } else if (choice == 5) {
+      char pattern[128];
+      printf("Search pattern: "); if (!fgets(pattern,sizeof pattern,stdin)) continue; pattern[strcspn(pattern,"\n")]=0;
+      int m = lockerSearch(pattern);
+      printf("%d match(es).\n", m);
+    } else if (choice == 6) {
+      char oldPin[64], newPin[64];
+      printf("Old PIN: "); if (!fgets(oldPin,sizeof oldPin,stdin)) continue; oldPin[strcspn(oldPin,"\n")]=0;
+      printf("New PIN: "); if (!fgets(newPin,sizeof newPin,stdin)) continue; newPin[strcspn(newPin,"\n")]=0;
+      if (lockerChangePIN(oldPin,newPin)==0) printf("PIN changed.\n"); else printf("PIN change failed.\n");
+    } else {
+      printf("Invalid choice.\n");
+    }
+  }
+  lockerClose();
+  return 0;
 }

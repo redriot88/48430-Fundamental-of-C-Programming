@@ -20,3 +20,42 @@ Architecture:
 *utils.c /utils.h (string helpres, I/O wrappers, error handling)
 
 *makefile (function for building) - Ed (drafted)
+
+## Build
+
+Using make (Windows PowerShell):
+
+```
+make
+```
+
+Debug build (adds -DDEBUG):
+
+```
+make debug
+```
+
+Run:
+
+```
+./locker   (or .\\locker.exe on Windows)
+```
+
+## Modules
+
+- `locker.h` / `locker.c`: Public API + core operations (open, add, extract, list, search, remove, change PIN). Currently contains stubs for later implementation.
+- `compress.h` / `compress.c`: Simple Run-Length Encoding (RLE) compression/decompression.
+- `crypto.h` / `crypto.c`: Simple XOR-based cipher with naive key derivation from PIN (placeholder for enhancement).
+- `storage.h` / `storage.c`: Placeholder for persistence of index + data (to be implemented).
+- `util.h` / `util.c`: Utility helpers for file I/O and a placeholder timestamp.
+- `main.c`: Interactive menu driver.
+
+## Next Steps (Checkpoint Roadmap)
+1. Implement real locker file format (header + entries + data region).
+2. Integrate compression & encryption inside `lockerAddFile` and reverse process in `lockerExtractFile`.
+3. Persist master PIN securely (store hashed/obfuscated form) and re-encrypt on PIN change.
+4. Add sorting modes & advanced search (substring already stubbed).
+5. Robust input validation & error codes for resilience.
+
+## Notes
+Only standard headers allowed: stdio.h, stdlib.h, string.h, math.h. The current code adheres to this (pedantic flags enabled). Additional algorithms (e.g., alternative compression or searching structures) can be layered without external libraries.
