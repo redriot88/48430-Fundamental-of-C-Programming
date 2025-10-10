@@ -15,7 +15,7 @@ Architecture:
 
 *compress.c/ compress.h (compress/ decompress) - Tarun (to be done)
 
-*storage.c storage.h (file format, read, write, index management) - Ed (to be done)
+*storage.c storage.h (file format, read, write, index management) - Ed M (to be done)
 
 *utils.c /utils.h (string helpers, I/O wrappers, error handling) - Tarun (to be done)
 
