@@ -1,9 +1,9 @@
 /**
- * Personal Document Safe Locker - Public API (Checkpoint 1 Skeleton)
+ * Personal Document Safe Locker - Public API
  * Group: (ADD GROUP NUMBER)  Lab: (ADD LAB NUMBER)
  * Build (example):
- *   gcc -std=c11 -Wall -Wextra -pedantic -ansi -DDEBUG -o locker \
- *       main.c locker.c storage.c crypto.c compress.c util.c
+ *   gcc -std=c11 -Wall -Wextra -pedantic -DDEBUG -o locker \
+ *       main.c locker.c
  * Allowed standard libs only: stdio.h, stdlib.h, string.h, math.h
  */
 #ifndef LOCKER_H
@@ -37,6 +37,14 @@ typedef struct {
     int count;
     int capacity;
 } index_t;
+
+/* Locker file header format (includes PIN) */
+typedef struct {
+    unsigned int magic;
+    unsigned int version;
+    unsigned int count;
+    char masterPin[MAX_PIN];
+} lockerHeader_t;
 
 /* Accessor for global index (implemented in locker.c) */
 index_t *lockerGetIndex(void);
