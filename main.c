@@ -52,8 +52,9 @@ int main(void) {
       lockerList();
     } else if (choice == 5) {
       char pattern[128];
+      int m;
       printf("Search pattern: "); if (!fgets(pattern,sizeof pattern,stdin)) continue; pattern[strcspn(pattern,"\n")]=0;
-      int m = lockerSearch(pattern);
+      m = lockerSearch(pattern);
       printf("%d match(es).\n", m);
     } else if (choice == 6) {
       char oldPin[64], newPin[64];

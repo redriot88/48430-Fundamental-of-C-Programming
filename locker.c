@@ -1,12 +1,12 @@
 /*
- * locker.c - Core implementation with persistence
+ * locker.c - Core implementation with persistence 
  */
 
 #include "locker.h"
 
 /* Internal global index */
 static index_t g_index = { NULL, 0, 0 };
-static char g_masterPin[MAX_PIN] = {0};   /* loaded from file */
+static char g_masterPin[MAX_PIN] = {0};
 static FILE *g_lockerFile = NULL;
 
 /* Accessor */
@@ -16,10 +16,13 @@ index_t *lockerGetIndex(void) {
 
 /* Ensure dynamic capacity */
 static int ensureCapacity(int needed) {
+    int newCap;
+    indexEntry_t *tmp;
+
     if (g_index.capacity >= needed) return 0;
-    int newCap = g_index.capacity ? g_index.capacity * 2 : 8;
+    newCap = g_index.capacity ? g_index.capacity * 2 : 8;
     while (newCap < needed) newCap *= 2;
-    indexEntry_t *tmp = realloc(g_index.entries, (size_t)newCap * sizeof(indexEntry_t));
+    tmp = realloc(g_index.entries, (size_t)newCap * sizeof(indexEntry_t));
     if (!tmp) return -1;
     g_index.entries = tmp;
     g_index.capacity = newCap;
@@ -28,13 +31,20 @@ static int ensureCapacity(int needed) {
 
 /* File open helper */
 static int openLockerFile(const char *lockerPath) {
+    lockerHeader_t hdr;
+
     if (g_lockerFile) return 0;
     g_lockerFile = fopen(lockerPath, "r+b");
     if (!g_lockerFile) {
         g_lockerFile = fopen(lockerPath, "w+b");
         if (!g_lockerFile) return -1;
-        lockerHeader_t hdr = { LOCKER_MAGIC, LOCKER_VERSION, 0u, "admin" };
+        hdr.magic   = LOCKER_MAGIC;
+        hdr.version = LOCKER_VERSION;
+        hdr.count   = 0u;
+        strncpy(hdr.masterPin, "admin", MAX_PIN-1);
+        hdr.masterPin[MAX_PIN-1] = '\0';
         strncpy(g_masterPin, "admin", MAX_PIN-1);
+        g_masterPin[MAX_PIN-1] = '\0';
         fwrite(&hdr, sizeof hdr, 1, g_lockerFile);
         fflush(g_lockerFile);
     }
@@ -74,16 +84,18 @@ int lockerChangePIN(const char *oldPin, const char *newPin) {
     if (!newPin || !*newPin) return -2;
     strncpy(g_masterPin, newPin, MAX_PIN-1);
     g_masterPin[MAX_PIN-1] = '\0';
-    return lockerSaveIndex(); /* persist immediately */
+    return lockerSaveIndex();
 }
 
 /* Add index entry helper */
 static int addIndexEntry(const char *title, unsigned long origSize,
                          unsigned long storedSize, unsigned long offset,
                          unsigned int flags) {
+    indexEntry_t *e;
+
     if (!title || !*title) return -1;
     if (ensureCapacity(g_index.count + 1) != 0) return -2;
-    indexEntry_t *e = &g_index.entries[g_index.count];
+    e = &g_index.entries[g_index.count];
     memset(e, 0, sizeof *e);
     strncpy(e->title, title, MAX_TITLE - 1);
     e->title[MAX_TITLE - 1] = '\0';
@@ -95,18 +107,24 @@ static int addIndexEntry(const char *title, unsigned long origSize,
     return 0;
 }
 
-/* Add file (stub for now) */
+/* Add file (stub) */
 int lockerAddFile(const char *filepath, const char *title, int compressFlag, int encryptFlag) {
+    unsigned int flags;
+    unsigned long origSize;
+    unsigned long storedSize;
+    unsigned long offset;
+    int rc;
+
     if (!filepath || !*filepath || !title || !*title) return -1;
-    unsigned int flags = 0u;
+    flags = 0u;
     if (compressFlag) flags |= FLAG_COMPRESSED;
     if (encryptFlag)  flags |= FLAG_ENCRYPTED;
 
-    unsigned long origSize = 0ul;
-    unsigned long storedSize = origSize;
-    unsigned long offset = sizeof(lockerHeader_t) + (unsigned long)g_index.count * sizeof(indexEntry_t);
+    origSize = 0ul;
+    storedSize = origSize;
+    offset = sizeof(lockerHeader_t) + (unsigned long)g_index.count * sizeof(indexEntry_t);
 
-    int rc = addIndexEntry(title, origSize, storedSize, offset, flags);
+    rc = addIndexEntry(title, origSize, storedSize, offset, flags);
     if (rc != 0) return rc;
     return lockerSaveIndex();
 }
@@ -114,28 +132,32 @@ int lockerAddFile(const char *filepath, const char *title, int compressFlag, int
 /* Extract file (stub) */
 int lockerExtractFile(const char *title, const char *outputPath) {
     (void)title; (void)outputPath;
-    DBG("lockerExtractFile stub called for %s\n", title ? title : "(null)");
+    DBG("lockerExtractFile stub called\n");
     return 0;
 }
 
 /* Remove file */
 int lockerRemoveFile(const char *title) {
+    int i, j;
     if (!title) return -1;
-    for (int i=0;i<g_index.count;i++) {
-        if (strcmp(g_index.entries[i].title, title)==0) {
-            for (int j=i+1;j<g_index.count;j++) g_index.entries[j-1] = g_index.entries[j];
+    for (i = 0; i < g_index.count; i++) {
+        if (strcmp(g_index.entries[i].title, title) == 0) {
+            for (j = i + 1; j < g_index.count; j++) {
+                g_index.entries[j - 1] = g_index.entries[j];
+            }
             g_index.count--;
             DBG("Removed entry %s\n", title);
             return lockerSaveIndex();
         }
     }
-    return -2; /* not found */
+    return -2;
 }
 
 /* List files */
 void lockerList(void) {
+    int i;
     printf("\nStored Files (%d)\n", g_index.count);
-    for (int i=0;i<g_index.count;i++) {
+    for (i = 0; i < g_index.count; i++) {
         indexEntry_t *e = &g_index.entries[i];
         printf("%2d. %-30s orig=%lu stored=%lu flags=0x%02X\n",
                i+1, e->title, e->originalSize, e->storedSize, e->flags);
@@ -144,9 +166,10 @@ void lockerList(void) {
 
 /* Search */
 int lockerSearch(const char *pattern) {
-    if (!pattern || !*pattern) return 0;
+    int i;
     int matches = 0;
-    for (int i=0;i<g_index.count;i++) {
+    if (!pattern || !*pattern) return 0;
+    for (i = 0; i < g_index.count; i++) {
         if (strstr(g_index.entries[i].title, pattern)) {
             printf("Match: %s\n", g_index.entries[i].title);
             matches++;
@@ -157,9 +180,11 @@ int lockerSearch(const char *pattern) {
 
 /* Save index + PIN */
 int lockerSaveIndex(void) {
+    lockerHeader_t hdr;
+    size_t bytes;
+
     if (!g_lockerFile) return -1;
 
-    lockerHeader_t hdr;
     hdr.magic   = LOCKER_MAGIC;
     hdr.version = LOCKER_VERSION;
     hdr.count   = (unsigned int)g_index.count;
@@ -171,7 +196,7 @@ int lockerSaveIndex(void) {
     if (fwrite(&hdr, sizeof hdr, 1, g_lockerFile) != 1) return -2;
 
     /* Write index entries */
-    size_t bytes = (size_t)g_index.count * sizeof(indexEntry_t);
+    bytes = (size_t)g_index.count * sizeof(indexEntry_t);
     if (bytes > 0) {
         if (fwrite(g_index.entries, 1, bytes, g_lockerFile) != bytes) return -3;
     }
@@ -182,9 +207,11 @@ int lockerSaveIndex(void) {
 }
 /* Load header + index (also loads PIN) */
 int lockerLoadIndex(void) {
+    lockerHeader_t hdr;
+    size_t bytes;
+
     if (!g_lockerFile) return -1;
 
-    lockerHeader_t hdr;
     rewind(g_lockerFile);
     if (fread(&hdr, sizeof hdr, 1, g_lockerFile) != 1) return -1;
     if (hdr.magic != LOCKER_MAGIC || hdr.version != LOCKER_VERSION) return -2;
@@ -198,7 +225,7 @@ int lockerLoadIndex(void) {
     g_index.count = (int)hdr.count;
 
     /* Read index entries */
-    size_t bytes = (size_t)g_index.count * sizeof(indexEntry_t);
+    bytes = (size_t)g_index.count * sizeof(indexEntry_t);
     if (bytes > 0) {
         if (fread(g_index.entries, 1, bytes, g_lockerFile) != bytes) return -4;
     }
