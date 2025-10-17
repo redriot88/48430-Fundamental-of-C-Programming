@@ -1,7 +1,7 @@
 /**
  * 48430 Fundamentals of C Programming - Assignment 3 Group Project
  * Personal Document Safe Locker (Interactive driver)
- * Group: (ADD GROUP NUMBER)  Lab: (ADD LAB NUMBER)
+ * Group: grp08  Lab: 2pm
  * Build:
  *   gcc -std=c11 -Wall -Wextra -pedantic -ansi -DDEBUG -o locker \
  *       main.c locker.c
