@@ -1,10 +1,5 @@
 /**
- * Personal Document Safe Locker - Public API (Checkpoint 1 Skeleton)
- * Group: (ADD GROUP NUMBER)  Lab: (ADD LAB NUMBER)
- * Build (example):
- *   gcc -std=c11 -Wall -Wextra -pedantic -ansi -DDEBUG -o locker \
- *       main.c locker.c storage.c crypto.c compress.c util.c
- * Allowed standard libs only: stdio.h, stdlib.h, string.h, math.h
+ * Personal Document Safe Locker - Public API
  */
 #ifndef LOCKER_H
 #define LOCKER_H
@@ -38,24 +33,32 @@ typedef struct {
     int capacity;
 } index_t;
 
+/* Locker file header format (includes PIN) */
+typedef struct {
+    unsigned int magic;
+    unsigned int version;
+    unsigned int count;
+    char masterPin[MAX_PIN];
+} lockerHeader_t;
+
 /* Accessor for global index (implemented in locker.c) */
 index_t *lockerGetIndex(void);
 
 /* Lifecycle */
-int lockerOpen(const char *lockerPath, const char *pin); /* returns 0 on success */
+int lockerOpen(const char *lockerPath, const char *pin);
 int lockerClose(void);
 
 /* Master PIN */
 int lockerChangePIN(const char *oldPin, const char *newPin);
 
-/* Core operations (return 0 success, non-zero error) */
+/* Core operations */
 int lockerAddFile(const char *filepath, const char *title, int compressFlag, int encryptFlag);
 int lockerExtractFile(const char *title, const char *outputPath);
 int lockerRemoveFile(const char *title);
 
 /* Listing & Search */
 void lockerList(void);
-int lockerSearch(const char *pattern); /* returns matches count */
+int lockerSearch(const char *pattern);
 
 /* Index persistence */
 int lockerSaveIndex(void);
@@ -64,11 +67,11 @@ int lockerLoadIndex(void);
 /* Menu (interactive mode) */
 void printMenu(void);
 
-/* Debug macro */
+/* Debug macro (ANSI‑safe) */
 #ifdef DEBUG
-#define DBG(...) fprintf(stderr, "[DBG] " __VA_ARGS__)
+#define DBG printf
 #else
-#define DBG(...)
+#define DBG (void)
 #endif
 
 #endif /* LOCKER_H */
