@@ -2,9 +2,6 @@
  * crypto.h - Cryptography Module Header
  * Handles encryption/decryption, key derivation, and PRNG for the locker system
  * Author: Edward Doan
- * 
- * This module provides basic cryptographic functions for securing stored files.
- * Uses XOR-based encryption with derived keys and a simple PRNG for randomness.
  */
 
 #ifndef CRYPTO_H

@@ -1,9 +1,6 @@
-/**
+/*
  * crypto.c - Cryptography Module Implementation
  * Author: Edward Doan
- * 
- * This file implements the cryptographic functions for the Personal Document Locker.
- * Includes PRNG, key derivation, and encryption/decryption helpers.
  */
 
 #include "crypto.h"
