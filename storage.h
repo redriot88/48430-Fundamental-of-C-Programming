@@ -41,14 +41,7 @@ typedef struct {
 /*******************************************************************************
  * Function Prototypes
 *******************************************************************************/
-
-int  storage_loadIndex(const char *index_path, index_t *idx);
-int  storage_saveIndex(const char *index_path, const index_t *idx);
-int  storage_addFile(index_t *idx, const char *filename, unsigned long size,
-                     unsigned long original_size, unsigned long offset, unsigned int hash);
-int  storage_removeFile(index_t *idx, const char *filename);
-const file_entry_t* storage_findFile(const index_t *idx, const char *filename);
-void storage_listFiles(const index_t *idx);
-unsigned int storage_simpleHash(const void *data, size_t len);
+int storageSaveAll(const char *path, const index_t *idx);
+int storageLoadAll(const char *path, index_t *idx);
 
 #endif /* STORAGE_H */
