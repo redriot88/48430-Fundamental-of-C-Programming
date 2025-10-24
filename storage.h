@@ -1,36 +1,54 @@
 #ifndef STORAGE_H
 #define STORAGE_H
-#include "locker.h"
 
+/*******************************************************************************
+ * List header files 
+*******************************************************************************/
+
+#include "locker.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+/*******************************************************************************
+ * List preprocessing directives
+*******************************************************************************/
+
 #define MAX_FILENAME_LENGTH 64
 #define MAX_FILES 50
 
+/*******************************************************************************
+ * List structs
+*******************************************************************************/
+
+/* Metadata on each stored file */
+
 typedef struct {
-  char filename[MAX_FILE_LEN];
+  char filename[MAX_FILENAME_LENGTH]; /*original filename*/
+  unsigned long size; /*compressed/encrypted data size*/
+  unsigned long originalSize; /*size prior compression/encryption*/
+  unsigned long offset; /*byte offset in data section*/
+  unsigned int hash; /* for simple checksum/integrity check*/
+} fileEntry_t;
+  
+/* Index structure (like a file allocation table)*/
 
-/* Placeholder function to persist full locker (data + index) */
+typedef struct {
+    unsigned int file_count;
+    file_entry_t files[MAX_FILES];
+} index_t;
 
-/*
-Save all locker data and index to disk
--will need path to output file
-pointer to index structure containing locker entries
-return 0 perhaps for success
-*/
+/*******************************************************************************
+ * Function Prototypes
+*******************************************************************************/
 
-int storageSaveAll(const char *path, const index_t *idx);
-
-/*
-load data and index to disk
--path to input file
-pointer to index structure to populate
-return 0 perhaps for success
-*/
-
-
-int storageLoadAll(const char *path, index_t *idx);
+int  storage_loadIndex(const char *index_path, index_t *idx);
+int  storage_saveIndex(const char *index_path, const index_t *idx);
+int  storage_addFile(index_t *idx, const char *filename, unsigned long size,
+                     unsigned long original_size, unsigned long offset, unsigned int hash);
+int  storage_removeFile(index_t *idx, const char *filename);
+const file_entry_t* storage_findFile(const index_t *idx, const char *filename);
+void storage_listFiles(const index_t *idx);
+unsigned int storage_simpleHash(const void *data, size_t len);
 
 #endif /* STORAGE_H */
