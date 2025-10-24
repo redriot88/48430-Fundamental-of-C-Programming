@@ -20,6 +20,10 @@
 #define MAX_TITLE    128
 #define MAX_PIN      32
 
+/* Roles */
+#define ROLE_ADMIN  1
+#define ROLE_PUBLIC 2
+
 /* Flag bits */
 #define FLAG_COMPRESSED  (1u<<0)
 #define FLAG_ENCRYPTED   (1u<<1)
@@ -30,6 +34,8 @@ typedef struct {
     unsigned long storedSize;       /* size stored in locker */
     unsigned long dataOffset;       /* offset inside locker file */
     unsigned int flags;             /* compression/encryption flags */
+    int isPublic;                   /* 1 if visible to public */
+    unsigned char *data;            /* in-memory stored bytes (no persistence yet) */
 } indexEntry_t;
 
 typedef struct {
@@ -40,6 +46,7 @@ typedef struct {
 
 /* Accessor for global index (implemented in locker.c) */
 index_t *lockerGetIndex(void);
+int lockerGetRole(void);
 
 /* Lifecycle */
 int lockerOpen(const char *lockerPath, const char *pin); /* returns 0 on success */
@@ -49,7 +56,7 @@ int lockerClose(void);
 int lockerChangePIN(const char *oldPin, const char *newPin);
 
 /* Core operations (return 0 success, non-zero error) */
-int lockerAddFile(const char *filepath, const char *title, int compressFlag, int encryptFlag);
+int lockerAddFile(const char *filepath, const char *title, int compressFlag, int encryptFlag, int makePublic);
 int lockerExtractFile(const char *title, const char *outputPath);
 int lockerRemoveFile(const char *title);
 
@@ -64,11 +71,11 @@ int lockerLoadIndex(void);
 /* Menu (interactive mode) */
 void printMenu(void);
 
-/* Debug macro */
+/* Debug macro (ANSI C90 compatible: no variadic macros) */
 #ifdef DEBUG
-#define DBG(...) fprintf(stderr, "[DBG] " __VA_ARGS__)
+#define DBG1(args) do { fprintf args; } while(0)
 #else
-#define DBG(...)
+#define DBG1(args) ((void)0)
 #endif
 
 #endif /* LOCKER_H */

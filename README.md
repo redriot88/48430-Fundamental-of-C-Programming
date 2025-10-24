@@ -59,3 +59,20 @@ Run:
 
 ## Notes
 Only standard headers allowed: stdio.h, stdlib.h, string.h, math.h. The current code adheres to this (pedantic flags enabled). Additional algorithms (e.g., alternative compression or searching structures) can be layered without external libraries.
+
+
+$env:Path = "C:\msys64\ucrt64\bin;$env:Path"
+
+
+& "C:\Program Files\LLVM\bin\clang.exe" -target x86_64-w64-mingw32 -isystem "C:\msys64\ucrt64\include" -I. -Wall -Wextra -ansi -pedantic -c main.c locker.c compress.c crypto.c util.c storage.c
+
+
+& "C:\Program Files\LLVM\bin\clang.exe" -target x86_64-w64-mingw32 -o locker.exe main.o locker.o compress.o crypto.o util.o storage.o -L "C:\msys64\ucrt64\lib" -L "C:\msys64\ucrt64\lib\gcc\x86_64-w64-mingw32\15.2.0" -lmingw32 -lmingwex -lgcc -lmsvcrt -lkernel32 
+
+
+
+
+.\locker.exe
+
+
+
