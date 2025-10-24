@@ -6,6 +6,7 @@
 #include "crypto.h"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 size_t derive_key(const char *pin, unsigned char *out, size_t maxLen) {
     unsigned char acc;
     size_t pinLen;
@@ -22,6 +23,8 @@ size_t derive_key(const char *pin, unsigned char *out, size_t maxLen) {
         out[i] = acc;
         i++;
 =======
+=======
+>>>>>>> 4c37e469a0b023e206bb83b47211d073be755ff5
 static unsigned long prng_state = 1;  
 
 #define PRNG_A 1103515245UL  
@@ -33,7 +36,10 @@ void prng_seed(unsigned long seed) {
     prng_state = seed % PRNG_M;
     if (prng_state == 0) {
         prng_state = 1;  
+<<<<<<< HEAD
 >>>>>>> a3e333e19c0d413a328df8e5eca249cf93209e29
+=======
+>>>>>>> 4c37e469a0b023e206bb83b47211d073be755ff5
     }
 }
 
@@ -83,6 +89,7 @@ size_t derive_key(const char *pin, unsigned char *out, size_t maxLen) {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 void xor_cipher(unsigned char *data, size_t n, const unsigned char *key, size_t keyLen) {
     size_t i;
     if (!data || !key || keyLen==0) return;
@@ -92,6 +99,8 @@ void xor_cipher(unsigned char *data, size_t n, const unsigned char *key, size_t 
         i++;
     }
 =======
+=======
+>>>>>>> 4c37e469a0b023e206bb83b47211d073be755ff5
 unsigned long hash_pin(const char *pin) {
 
     unsigned long hash;
@@ -231,5 +240,8 @@ int verify_pin(const char *pin, unsigned long storedHash) {
     
     /* Return 1 for match, 0 for no match */
     return (computedHash == storedHash) ? 1 : 0;
+<<<<<<< HEAD
 >>>>>>> a3e333e19c0d413a328df8e5eca249cf93209e29
+=======
+>>>>>>> 4c37e469a0b023e206bb83b47211d073be755ff5
 }
