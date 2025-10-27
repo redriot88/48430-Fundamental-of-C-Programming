@@ -1,3 +1,10 @@
+/*
+ * util.h
+ * Small helper functions for file I/O and simple utilities used by the
+ * locker program. These are intentionally minimal to keep focus on the
+ * assignment tasks (indexing, compression, encryption).
+ */
+
 #ifndef UTIL_H
 #define UTIL_H
 #include <stddef.h>

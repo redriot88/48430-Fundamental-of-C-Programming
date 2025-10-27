@@ -9,31 +9,30 @@ endif
 OBJS = main.o locker.o compress.o crypto.o util.o storage.o
 
 locker: $(OBJS)
-  $(CC) $(CFLAGS) -o locker $(OBJS)
+	$(CC) $(CFLAGS) -o locker $(OBJS)
 
 main.o: main.c locker.h
-  $(CC) $(CFLAGS) -c main.c
+	$(CC) $(CFLAGS) -c main.c
 
 locker.o: locker.c locker.h
-  $(CC) $(CFLAGS) -c locker.c
+	$(CC) $(CFLAGS) -c locker.c
 
 compress.o: compress.c compress.h
-  $(CC) $(CFLAGS) -c compress.c
+	$(CC) $(CFLAGS) -c compress.c
 
 crypto.o: crypto.c crypto.h
-  $(CC) $(CFLAGS) -c crypto.c
+	$(CC) $(CFLAGS) -c crypto.c
 
 util.o: util.c util.h
-  $(CC) $(CFLAGS) -c util.c
+	$(CC) $(CFLAGS) -c util.c
 
 storage.o: storage.c storage.h locker.h
-  $(CC) $(CFLAGS) -c storage.c
+	$(CC) $(CFLAGS) -c storage.c
 
 .PHONY: clean debug
 
 clean:
-  -del /q *.o 2>nul || true
-  -del /q locker.exe 2>nul || true
+	rm -f *.o locker
 
 debug:
-  $(MAKE) DEBUG=1
+	$(MAKE) DEBUG=1

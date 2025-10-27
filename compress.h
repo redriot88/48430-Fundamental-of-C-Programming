@@ -1,6 +1,13 @@
+/*
+ * compress.h
+ * Simple RLE compression helpers used by the locker demo.
+ * The library provides a tiny run-length encoder/decoder suitable for
+ * educational purposes and small text/binary blobs.
+ */
+
 #ifndef COMPRESS_H
 #define COMPRESS_H
-/* RLE compression API (simple) */
+
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
