@@ -30,12 +30,17 @@ unsigned char prng_byte(void) {
 size_t derive_key(const char *pin, unsigned char *out, size_t maxLen) {
     unsigned char acc;
     size_t pinLen, i;
+
+    /* Input validation - check for null pointers and empty data */
     if (!pin || !out || maxLen == 0) return 0;
     pinLen = strlen(pin);
-    if (pinLen == 0) return 0;
+    if (pinLen == 0) return 0; /* Can't derive key from empty PIN */
     acc = 0xA5;
+     /* Main derivation loop: cycle through PIN chars and mix them */
     for (i = 0; i < maxLen; i++) {
+        /* XOR current accumulator with next PIN character */
         acc ^= (unsigned char)pin[i % pinLen];
+        /* Rotate bits left by 3 positions to spread the bits around */
         acc = (unsigned char)((acc << 3) | (acc >> 5));
         out[i] = acc;
     }
@@ -43,8 +48,9 @@ size_t derive_key(const char *pin, unsigned char *out, size_t maxLen) {
 }
 
 /* DJB2 for PIN hashing (used by verify_pin) */
+/* Formula: hash = hash * 33 + character*/
 unsigned long hash_pin(const char *pin) {
-    unsigned long hash = 5381UL;
+    unsigned long hash = 5381UL; /* Starting value */
     size_t i, len;
     if (!pin) return 0;
     len = strlen(pin);
@@ -55,13 +61,14 @@ unsigned long hash_pin(const char *pin) {
 /* XOR cipher (symmetric) */
 void xor_cipher(unsigned char *data, size_t n, const unsigned char *key, size_t keyLen) {
     size_t i;
-    if (!data || !key || keyLen == 0) return;
-    for (i = 0; i < n; i++) data[i] ^= key[i % keyLen];
+    if (!data || !key || keyLen == 0) return; /* Check for invalid inputs */
+    for (i = 0; i < n; i++) data[i] ^= key[i % keyLen]; /* XOR each byte of data with corresponding byte of key (cycling through key) */
 }
 
 int encrypt_data(unsigned char *data, size_t n, const char *pin) {
-    unsigned char key[256]; size_t keyLen;
-    if (!data || !pin || n == 0) return -1;
+    unsigned char key[256]; size_t keyLen; /* Buffer for derived key */
+    /* Validate inputs */
+    if (!data || !pin || n == 0) return -1; /* Error: invalid parameters */
     keyLen = (n < sizeof key) ? n : sizeof key;
     if (derive_key(pin, key, keyLen) == 0) return -1;
     xor_cipher(data, n, key, keyLen);
