@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
+int g_runtimeDebug = 0; /* runtime-controlled debug printing */
+
 void dbg(const char *fmt, ...) {
 #ifdef DEBUG
     va_list ap;
@@ -12,7 +14,14 @@ void dbg(const char *fmt, ...) {
     vfprintf(stderr, fmt, ap);
     va_end(ap);
 #else
-    (void)fmt;
+    if (g_runtimeDebug) {
+        va_list ap;
+        va_start(ap, fmt);
+        vfprintf(stderr, fmt, ap);
+        va_end(ap);
+    } else {
+        (void)fmt;
+    }
 #endif
 }
 
@@ -43,10 +52,22 @@ int util_readFile(const char *path, unsigned char **buffer, size_t *size) {
 
 int util_writeFile(const char *path, const unsigned char *buffer, size_t size) {
     FILE *f;
-    if (!path || !buffer) return -1;
+    /* Allow size==0 with NULL buffer to create an empty file */
+    if (!path || (!buffer && size > 0)) return -1;
     f = fopen(path, "wb");
     if (!f) return -2;
-    if (fwrite(buffer, 1, size, f) != size) { fclose(f); return -3; }
+    if (size > 0) {
+        if (fwrite(buffer, 1, size, f) != size) { fclose(f); return -3; }
+    }
     fclose(f);
     return 0;
+}
+
+int util_ensureStorageDir(void) {
+    /* Best effort: on POSIX/macOS, create storage directory if missing. */
+    /* Using standard C system() from stdlib.h, allowed by assignment constraints. */
+    int rc;
+    rc = system("mkdir -p storage > /dev/null 2>&1");
+    (void)rc;
+    return 1;
 }

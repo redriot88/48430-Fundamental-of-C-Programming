@@ -54,10 +54,10 @@ int lockerOpen(const char *lockerPath, const char *pin) {
 }
 
 int lockerClose(void) {
+    indexNode_t *n;
     lockerSaveIndex();
     if (g_lockerFile) { fclose(g_lockerFile); g_lockerFile = NULL; }
     /* free list */
-    indexNode_t *n;
     n = g_index.head;
     while (n) {
         indexNode_t *nx = n->next;
@@ -70,8 +70,24 @@ int lockerClose(void) {
 }
 
 int lockerChangePIN(const char *oldPin, const char *newPin) {
+    unsigned char oldKey[128];
+    unsigned char newKey[128];
+    size_t klen;
+    indexNode_t *n;
     if (!oldPin || !newPin) return -1;
     if (strcmp(oldPin, g_masterPin) != 0) return -2;
+    klen = sizeof oldKey;
+    if (derive_key(oldPin, oldKey, klen) == 0) return -3;
+    if (derive_key(newPin, newKey, klen) == 0) return -4;
+    /* Re-encrypt all encrypted entries from old key to new key, in-place */
+    n = g_index.head;
+    while (n) {
+        if ((n->entry.flags & FLAG_ENCRYPTED) && n->entry.storedSize > 0) {
+            xor_cipher(n->entry.data, (size_t)n->entry.storedSize, oldKey, klen);
+            xor_cipher(n->entry.data, (size_t)n->entry.storedSize, newKey, klen);
+        }
+        n = n->next;
+    }
     strncpy(g_masterPin, newPin, MAX_PIN-1); g_masterPin[MAX_PIN-1] = '\0';
     return lockerSaveIndex();
 }
@@ -92,21 +108,34 @@ int lockerAddFile(const char *filepath, const char *title, int compressFlag, int
     unsigned char *workBuf = NULL;
     size_t workCap, workSize;
     unsigned char key[128];
+    unsigned int hash32 = 0u;
     int rc;
     indexNode_t *node;
 
     if (g_role != ROLE_ADMIN) return -3; /* only admin */
-    if (!filepath || !title || !*title) return -1;
-    rc = util_readFile(filepath, &inBuf, &inSize);
-    if (rc != 0) return rc;
+    if (!title || !*title) return -1;
+    /* Allow empty filepath to create an empty file entry */
+    if (!filepath || !*filepath) {
+        inBuf = (unsigned char*)""; /* safe for memcpy with size 0 */
+        inSize = 0;
+        rc = 0;
+    } else {
+        rc = util_readFile(filepath, &inBuf, &inSize);
+        if (rc != 0) return rc;
+    }
+    if (inSize > 0) {
+        hash32 = (unsigned int)compute_file_hash(inBuf, inSize);
+    } else {
+        hash32 = 0u;
+    }
     workCap = inSize * 2 + 4;
     workBuf = (unsigned char*)malloc(workCap);
     if (!workBuf) { free(inBuf); return -5; }
-    if (compressFlag) {
+    if (compressFlag && inSize > 0) {
         workSize = rle_compress(inBuf, inSize, workBuf, workCap);
         if (workSize == 0) { memcpy(workBuf, inBuf, inSize); workSize = inSize; compressFlag = 0; }
     } else { memcpy(workBuf, inBuf, inSize); workSize = inSize; }
-    if (encryptFlag) {
+    if (encryptFlag && workSize > 0) {
         if (derive_key(g_masterPin, key, sizeof key) == 0) { free(inBuf); free(workBuf); return -6; }
         xor_cipher(workBuf, workSize, key, sizeof key);
     }
@@ -118,12 +147,20 @@ int lockerAddFile(const char *filepath, const char *title, int compressFlag, int
     node->entry.originalSize = (unsigned long)inSize;
     node->entry.storedSize = (unsigned long)workSize;
     node->entry.flags = (compressFlag?FLAG_COMPRESSED:0u) | (encryptFlag?FLAG_ENCRYPTED:0u);
+    node->entry.hash = hash32;
     node->entry.isPublic = makePublic ? 1 : 0;
-    node->entry.data = (unsigned char*)malloc(workSize);
-    if (!node->entry.data) { free(node); free(inBuf); free(workBuf); return -8; }
-    memcpy(node->entry.data, workBuf, workSize);
+    if (workSize > 0) {
+        node->entry.data = (unsigned char*)malloc(workSize);
+        if (!node->entry.data) { free(node); free(inBuf); free(workBuf); return -8; }
+        memcpy(node->entry.data, workBuf, workSize);
+    } else {
+        node->entry.data = NULL; /* zero-length payload */
+    }
     node->next = g_index.head; g_index.head = node; g_index.count++;
-    free(inBuf); free(workBuf);
+    /* Only free inBuf if it was allocated by util_readFile. When filepath is empty,
+       inBuf points to a string literal and must not be freed. */
+    if (filepath && *filepath) free(inBuf);
+    free(workBuf);
     DBG("[DBG] Added entry %s (orig=%lu stored=%lu flags=0x%X public=%d)\n", node->entry.title, node->entry.originalSize, node->entry.storedSize, node->entry.flags, node->entry.isPublic);
     return 0;
 }
@@ -133,6 +170,7 @@ int lockerExtractFile(const char *title, const char *outputPath) {
     unsigned char *buf = NULL, *tmp = NULL;
     size_t nbytes, outN;
     unsigned char key[128];
+    unsigned int calcHash;
 
     if (!title || !outputPath) return -1;
     n = findNode(title, NULL);
@@ -140,14 +178,18 @@ int lockerExtractFile(const char *title, const char *outputPath) {
     if (g_role == ROLE_PUBLIC && !n->entry.isPublic) return -3;
     DBG("[DBG] lockerExtractFile: found entry '%s' stored=%lu orig=%lu flags=0x%X public=%d\n", n->entry.title, n->entry.storedSize, n->entry.originalSize, n->entry.flags, n->entry.isPublic);
     nbytes = (size_t)n->entry.storedSize;
-    buf = (unsigned char*)malloc(nbytes);
-    if (!buf) return -4;
-    memcpy(buf, n->entry.data, nbytes);
-    if (n->entry.flags & FLAG_ENCRYPTED) {
+    if (nbytes > 0) {
+        buf = (unsigned char*)malloc(nbytes);
+        if (!buf) return -4;
+        memcpy(buf, n->entry.data, nbytes);
+    } else {
+        buf = NULL; /* zero-length content */
+    }
+    if ((n->entry.flags & FLAG_ENCRYPTED) && nbytes > 0) {
         if (derive_key(g_masterPin, key, sizeof key) == 0) { free(buf); return -5; }
         xor_cipher(buf, nbytes, key, sizeof key);
     }
-    if (n->entry.flags & FLAG_COMPRESSED) {
+    if ((n->entry.flags & FLAG_COMPRESSED) && nbytes > 0) {
         tmp = (unsigned char*)malloc((size_t)n->entry.originalSize);
         if (!tmp) { free(buf); return -6; }
         outN = rle_decompress(buf, nbytes, tmp, (size_t)n->entry.originalSize);
@@ -155,8 +197,13 @@ int lockerExtractFile(const char *title, const char *outputPath) {
         if (outN != (size_t)n->entry.originalSize) { free(tmp); return -7; }
         buf = tmp; nbytes = outN;
     }
-    if (util_writeFile(outputPath, buf, nbytes) != 0) { free(buf); return -8; }
-    free(buf);
+    /* Integrity check on the original content */
+    if (n->entry.originalSize > 0) {
+        calcHash = (unsigned int)compute_file_hash(buf, (size_t)n->entry.originalSize);
+        if (calcHash != n->entry.hash) { if (buf) free(buf); return -9; }
+    }
+    if (util_writeFile(outputPath, buf, nbytes) != 0) { if (buf) free(buf); return -8; }
+    if (buf) free(buf);
     DBG("[DBG] Extracted %s to %s\n", title, outputPath);
     return 0;
 }
@@ -181,7 +228,7 @@ void lockerList(void) {
     printf("\nStored Files (%d)\n", g_index.count);
     while (n) {
         if (g_role == ROLE_PUBLIC && !n->entry.isPublic) { n = n->next; idx++; continue; }
-        printf("%2d. %-30s orig=%lu stored=%lu flags=0x%02X vis=%s\n", idx, n->entry.title, n->entry.originalSize, n->entry.storedSize, n->entry.flags, n->entry.isPublic?"public":"private");
+        printf("%2d. %-30s orig=%lu stored=%lu flags=0x%02X hash=0x%08X vis=%s\n", idx, n->entry.title, n->entry.originalSize, n->entry.storedSize, n->entry.flags, n->entry.hash, n->entry.isPublic?"public":"private");
         shown++; n = n->next; idx++;
     }
     if (g_role == ROLE_PUBLIC && shown==0) printf("(no public files)\n");
@@ -212,13 +259,192 @@ int lockerLoadIndex(void) {
 
 void printMenu(void) {
     printf("\nPersonal Document Locker (%s)\n", (g_role==ROLE_ADMIN?"admin":"public"));
-    printf("1. Add file %s\n", (g_role==ROLE_ADMIN?"":"(admin only)"));
-    printf("2. Extract file\n");
+    printf("1. Add file (type content) %s\n", (g_role==ROLE_ADMIN?"":"(admin only)"));
+    printf("2. View file (decrypt+decompress)\n");
     printf("3. Remove file %s\n", (g_role==ROLE_ADMIN?"":"(admin only)"));
     printf("4. List files\n");
     printf("5. Search by filename\n");
     printf("6. Change master PIN %s\n", (g_role==ROLE_ADMIN?"":"(admin only)"));
-    printf("7. Logout\n");
-    printf("8. Quit\n");
+    printf("7. Edit file %s\n", (g_role==ROLE_ADMIN?"":"(admin only)"));
+    printf("8. Logout\n");
+    printf("9. Quit\n");
     printf("Select option: ");
+}
+
+int lockerEditFile(const char *title, const char *newTitle, const char *filepath, int compressFlag, int encryptFlag, int makePublic) {
+    indexNode_t *n;
+    unsigned char *inBuf;
+    size_t inSize;
+    unsigned char *workBuf;
+    size_t workCap, workSize;
+    unsigned char key[128];
+    unsigned int hash32;
+    int rc;
+
+    if (g_role != ROLE_ADMIN) return -3;
+    if (!title || !*title) return -1;
+    n = findNode(title, NULL);
+    if (!n) return -2;
+
+    /* Load new content */
+    inBuf = NULL; inSize = 0; workBuf = NULL; workCap = 0; workSize = 0; hash32 = 0u;
+    if (!filepath || !*filepath) {
+        inBuf = (unsigned char*)""; inSize = 0; rc = 0;
+    } else {
+        rc = util_readFile(filepath, &inBuf, &inSize);
+        if (rc != 0) return rc;
+    }
+    if (inSize > 0) hash32 = (unsigned int)compute_file_hash(inBuf, inSize);
+
+    workCap = inSize * 2 + 4;
+    workBuf = (unsigned char*)malloc(workCap);
+    if (!workBuf) { if (filepath && *filepath) free(inBuf); return -5; }
+    if (compressFlag && inSize > 0) {
+        workSize = rle_compress(inBuf, inSize, workBuf, workCap);
+        if (workSize == 0) { memcpy(workBuf, inBuf, inSize); workSize = inSize; compressFlag = 0; }
+    } else { memcpy(workBuf, inBuf, inSize); workSize = inSize; }
+    if (encryptFlag && workSize > 0) {
+        if (derive_key(g_masterPin, key, sizeof key) == 0) { if (filepath && *filepath) free(inBuf); free(workBuf); return -6; }
+        xor_cipher(workBuf, workSize, key, sizeof key);
+    }
+
+    /* Replace entry data */
+    if (n->entry.data) free(n->entry.data);
+    n->entry.data = NULL;
+    if (workSize > 0) {
+        n->entry.data = (unsigned char*)malloc(workSize);
+        if (!n->entry.data) { if (filepath && *filepath) free(inBuf); free(workBuf); return -8; }
+        memcpy(n->entry.data, workBuf, workSize);
+    }
+    if (newTitle && *newTitle) { strncpy(n->entry.title, newTitle, MAX_TITLE-1); n->entry.title[MAX_TITLE-1] = '\0'; }
+    n->entry.originalSize = (unsigned long)inSize;
+    n->entry.storedSize = (unsigned long)workSize;
+    n->entry.flags = (compressFlag?FLAG_COMPRESSED:0u) | (encryptFlag?FLAG_ENCRYPTED:0u);
+    n->entry.hash = hash32;
+    n->entry.isPublic = makePublic ? 1 : 0;
+
+    if (filepath && *filepath) free(inBuf);
+    free(workBuf);
+    DBG("[DBG] Edited entry %s (newTitle=%s)\n", title, (newTitle&&*newTitle)?newTitle:title);
+    return 0;
+}
+
+int lockerAddContent(const char *title, const unsigned char *buf, unsigned long size, int compressFlag, int encryptFlag, int makePublic) {
+    unsigned char *workBuf;
+    size_t workCap, workSize;
+    unsigned char key[128];
+    unsigned int hash32;
+    indexNode_t *node;
+
+    if (g_role != ROLE_ADMIN) return -3;
+    if (!title || !*title || (!buf && size>0)) return -1;
+    hash32 = (size>0)?(unsigned int)compute_file_hash(buf, (size_t)size):0u;
+    workCap = (size_t)size * 2u + 4u;
+    workBuf = (unsigned char*)malloc(workCap);
+    if (!workBuf) return -5;
+    if (compressFlag && size > 0u) {
+        workSize = rle_compress(buf, (size_t)size, workBuf, workCap);
+        if (workSize == 0) { memcpy(workBuf, buf, (size_t)size); workSize = (size_t)size; compressFlag = 0; }
+    } else { memcpy(workBuf, buf, (size_t)size); workSize = (size_t)size; }
+    if (encryptFlag && workSize > 0u) {
+        if (derive_key(g_masterPin, key, sizeof key) == 0) { free(workBuf); return -6; }
+        xor_cipher(workBuf, workSize, key, sizeof key);
+    }
+    node = (indexNode_t*)malloc(sizeof(indexNode_t));
+    if (!node) { free(workBuf); return -7; }
+    memset(&node->entry, 0, sizeof(node->entry));
+    strncpy(node->entry.title, title, MAX_TITLE-1);
+    node->entry.originalSize = (unsigned long)size;
+    node->entry.storedSize = (unsigned long)workSize;
+    node->entry.flags = (compressFlag?FLAG_COMPRESSED:0u) | (encryptFlag?FLAG_ENCRYPTED:0u);
+    node->entry.hash = hash32;
+    node->entry.isPublic = makePublic ? 1 : 0;
+    if (workSize > 0u) {
+        node->entry.data = (unsigned char*)malloc(workSize);
+        if (!node->entry.data) { free(node); free(workBuf); return -8; }
+        memcpy(node->entry.data, workBuf, workSize);
+    } else {
+        node->entry.data = NULL;
+    }
+    node->next = g_index.head; g_index.head = node; g_index.count++;
+    free(workBuf);
+    return 0;
+}
+
+int lockerEditContent(const char *title, const char *newTitle, const unsigned char *buf, unsigned long size, int compressFlag, int encryptFlag, int makePublic) {
+    indexNode_t *n;
+    unsigned char *workBuf;
+    size_t workCap, workSize;
+    unsigned char key[128];
+    unsigned int hash32;
+
+    if (g_role != ROLE_ADMIN) return -3;
+    if (!title || !*title || (!buf && size>0)) return -1;
+    n = findNode(title, NULL);
+    if (!n) return -2;
+    hash32 = (size>0)?(unsigned int)compute_file_hash(buf, (size_t)size):0u;
+    workCap = (size_t)size * 2u + 4u;
+    workBuf = (unsigned char*)malloc(workCap);
+    if (!workBuf) return -5;
+    if (compressFlag && size > 0u) {
+        workSize = rle_compress(buf, (size_t)size, workBuf, workCap);
+        if (workSize == 0) { memcpy(workBuf, buf, (size_t)size); workSize = (size_t)size; compressFlag = 0; }
+    } else { memcpy(workBuf, buf, (size_t)size); workSize = (size_t)size; }
+    if (encryptFlag && workSize > 0u) {
+        if (derive_key(g_masterPin, key, sizeof key) == 0) { free(workBuf); return -6; }
+        xor_cipher(workBuf, workSize, key, sizeof key);
+    }
+    if (n->entry.data) free(n->entry.data);
+    n->entry.data = NULL;
+    if (workSize > 0u) {
+        n->entry.data = (unsigned char*)malloc(workSize);
+        if (!n->entry.data) { free(workBuf); return -8; }
+        memcpy(n->entry.data, workBuf, workSize);
+    }
+    if (newTitle && *newTitle) { strncpy(n->entry.title, newTitle, MAX_TITLE-1); n->entry.title[MAX_TITLE-1]='\0'; }
+    n->entry.originalSize = (unsigned long)size;
+    n->entry.storedSize = (unsigned long)workSize;
+    n->entry.flags = (compressFlag?FLAG_COMPRESSED:0u) | (encryptFlag?FLAG_ENCRYPTED:0u);
+    n->entry.hash = hash32;
+    n->entry.isPublic = makePublic ? 1 : 0;
+    free(workBuf);
+    return 0;
+}
+
+int lockerGetContent(const char *title, unsigned char **outBuf, unsigned long *outSize) {
+    indexNode_t *n;
+    unsigned char *buf;
+    size_t nbytes;
+    unsigned char key[128];
+    if (!title || !outBuf || !outSize) return -1;
+    *outBuf = NULL; *outSize = 0;
+    n = findNode(title, NULL);
+    if (!n) return -2;
+    if (g_role == ROLE_PUBLIC && !n->entry.isPublic) return -3;
+    nbytes = (size_t)n->entry.storedSize;
+    if (nbytes == 0) { *outBuf = NULL; *outSize = 0; return 0; }
+    buf = (unsigned char*)malloc(nbytes);
+    if (!buf) return -4;
+    memcpy(buf, n->entry.data, nbytes);
+    if (n->entry.flags & FLAG_ENCRYPTED) {
+        if (derive_key(g_masterPin, key, sizeof key) == 0) { free(buf); return -5; }
+        xor_cipher(buf, nbytes, key, sizeof key);
+    }
+    if (n->entry.flags & FLAG_COMPRESSED) {
+        unsigned char *tmp;
+        size_t outN;
+        tmp = (unsigned char*)malloc((size_t)n->entry.originalSize);
+        if (!tmp) { free(buf); return -6; }
+        outN = rle_decompress(buf, nbytes, tmp, (size_t)n->entry.originalSize);
+        free(buf);
+        if (outN != (size_t)n->entry.originalSize) { free(tmp); return -7; }
+        buf = tmp; nbytes = outN;
+    }
+    /* Optional integrity check */
+    if (n->entry.originalSize > 0) {
+        unsigned int calc = (unsigned int)compute_file_hash(buf, (size_t)n->entry.originalSize);
+        if (n->entry.hash != 0u && calc != n->entry.hash) { free(buf); return -9; }
+    }
+    *outBuf = buf; *outSize = (unsigned long)nbytes;
+    return 0;
 }

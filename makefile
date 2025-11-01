@@ -25,9 +25,9 @@ crypto.o: crypto.c crypto.h
 
 util.o: util.c util.h
 	$(CC) $(CFLAGS) -c util.c
-
+ 
 storage.o: storage.c storage.h locker.h
-	$(CC) $(CFLAGS) -c storage.c
+	$(CC) $(CFLAGS) -c storage.c    
 
 .PHONY: clean debug
 

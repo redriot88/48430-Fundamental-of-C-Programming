@@ -28,6 +28,7 @@ typedef struct {
     unsigned long originalSize;
     unsigned long storedSize;
     unsigned int flags;
+    unsigned int hash; /* 32-bit hash of original (decompressed, decrypted) content */
     int isPublic;
     unsigned char *data;
 } indexEntry_t;
@@ -65,6 +66,13 @@ int lockerChangePIN(const char *oldPin, const char *newPin);
 int lockerAddFile(const char *filepath, const char *title, int compressFlag, int encryptFlag, int makePublic);
 int lockerExtractFile(const char *title, const char *outputPath);
 int lockerRemoveFile(const char *title);
+/* Edit existing entry: replace content/metadata, optionally rename. */
+int lockerEditFile(const char *title, const char *newTitle, const char *filepath, int compressFlag, int encryptFlag, int makePublic);
+
+/* New in-memory content APIs (caller owns buffers passed in; returned buffers must be freed by caller) */
+int lockerAddContent(const char *title, const unsigned char *buf, unsigned long size, int compressFlag, int encryptFlag, int makePublic);
+int lockerEditContent(const char *title, const char *newTitle, const unsigned char *buf, unsigned long size, int compressFlag, int encryptFlag, int makePublic);
+int lockerGetContent(const char *title, unsigned char **outBuf, unsigned long *outSize);
 
 void lockerList(void);
 int lockerSearch(const char *pattern);

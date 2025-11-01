@@ -53,15 +53,24 @@ static int encrypt_demo(const char *inpath, const char *outpath, const char *pin
 }
 
 int main(int argc, char **argv) {
-  /* CLI mini-tools: support `encrypt` mode for demo: ./program.out encrypt inpath outpath [pin] */
+  /* Runtime mode parsing: --debug or 'debug' enables verbose logs; 'encrypt' subcommand. */
+  {
+    int i; int enableDebug = 0;
+    for (i = 1; i < argc; i++) {
+      if (strcmp(argv[i], "--debug") == 0 || strcmp(argv[i], "debug") == 0) { enableDebug = 1; }
+    }
+    if (enableDebug) { g_runtimeDebug = 1; }
+  }
+  /* CLI mini-tools: support `encrypt` mode for demo: ./program.out [--debug] encrypt inpath outpath [pin] */
   if (argc >= 2 && strcmp(argv[1], "encrypt") == 0) {
     const char *pin;
+    int r;
     if (argc < 4) {
-      fprintf(stderr, "Usage: %s encrypt <input> <output> [pin]\n", argv[0]);
+      fprintf(stderr, "Usage: %s [--debug] encrypt <input> <output> [pin]\n", argv[0]);
       return 1;
     }
     pin = (argc >= 5) ? argv[4] : "admin";
-    int r = encrypt_demo(argv[2], argv[3], pin);
+    r = encrypt_demo(argv[2], argv[3], pin);
     if (r != 0) {
       fprintf(stderr, "encrypt failed (%d)\n", r);
       return 1;
@@ -93,28 +102,49 @@ int main(int argc, char **argv) {
       printMenu();
       if (scanf("%d", &choice) != 1) { printf("Exiting.\n"); lockerClose(); return 0; }
       consumeLine();
-      if (choice == 7) { /* logout */
+      if (choice == 8) { /* logout */
         printf("Logged out.\n");
         lockerClose();
-        break; /* back to login loop */
+        break;
       }
-      if (choice == 8) { /* quit */
+      if (choice == 9) { /* quit */
         printf("Goodbye.\n");
         lockerClose();
         return 0;
       }
       if (choice == 1) {
-        char path[256], title[128];
+        char title[128];
         char ans[8];
-        printf("Path to file: "); if (!fgets(path, sizeof path, stdin)) continue; path[strcspn(path,"\n")] = 0;
+        unsigned char *buf; size_t cap, len; int done;
         printf("Title to store: "); if (!fgets(title, sizeof title, stdin)) continue; title[strcspn(title,"\n")] = 0;
+        printf("Enter content (end with a single '.' on its own line):\n");
+        cap = 1024; len = 0; buf = (unsigned char*)malloc(cap); if (!buf) { printf("OOM\n"); continue; }
+        done = 0;
+        while (!done) {
+          char line[512]; size_t l;
+          if (!fgets(line, sizeof line, stdin)) { done = 1; break; }
+          if (line[0]=='.' && (line[1]=='\n' || line[1]=='\0')) { done = 1; break; }
+          l = strlen(line);
+          if (len + l > cap) { size_t newCap = cap*2 + l + 16; unsigned char *nb = (unsigned char*)realloc(buf, newCap); if (!nb) { free(buf); buf=NULL; printf("OOM\n"); break; } buf = nb; cap = newCap; }
+          memcpy(buf+len, (unsigned char*)line, l); len += l;
+        }
+        if (!buf) continue;
         printf("Make public? (y/n): "); if (!fgets(ans, sizeof ans, stdin)) ans[0] = 'n';
-        if (lockerAddFile(path, title, 1, 1, (ans[0]=='y'||ans[0]=='Y'))==0) printf("Added %s\n", title); else printf("Add failed (admin only or error)\n");
+        if (lockerAddContent(title, buf, (unsigned long)len, 1, 1, (ans[0]=='y'||ans[0]=='Y'))==0) printf("Added %s\n", title); else printf("Add failed (admin only or error)\n");
+        free(buf);
       } else if (choice == 2) {
-        char title[128], out[256];
-        printf("Title to extract: "); if (!fgets(title,sizeof title,stdin)) continue; title[strcspn(title,"\n")] = 0;
-        printf("Output path: "); if (!fgets(out,sizeof out,stdin)) continue; out[strcspn(out,"\n")] = 0;
-        if (lockerExtractFile(title, out)==0) printf("Extracted to %s\n", out); else printf("Extract failed\n");
+        char title[128];
+        unsigned char *buf; unsigned long n; int rc;
+        printf("Title to view: "); if (!fgets(title,sizeof title,stdin)) continue; title[strcspn(title,"\n")] = 0;
+        rc = lockerGetContent(title, &buf, &n);
+        if (rc == 0) {
+          printf("----- %s (size=%lu) -----\n", title, n);
+          if (n>0 && buf) { fwrite(buf, 1, (size_t)n, stdout); }
+          printf("\n----- end -----\n");
+          if (buf) free(buf);
+        } else {
+          printf("Extract failed (code=%d)\n", rc);
+        }
       } else if (choice == 3) {
         char title[128];
         printf("Title to remove: "); if (!fgets(title,sizeof title,stdin)) continue; title[strcspn(title,"\n")] = 0;
@@ -122,8 +152,7 @@ int main(int argc, char **argv) {
       } else if (choice == 4) {
         lockerList();
       } else if (choice == 5) {
-        char pattern[128];
-        int m;
+        char pattern[128]; int m;
         printf("Search pattern: "); if (!fgets(pattern,sizeof pattern,stdin)) continue; pattern[strcspn(pattern,"\n")] = 0;
         m = lockerSearch(pattern);
         printf("%d match(es).\n", m);
@@ -132,6 +161,27 @@ int main(int argc, char **argv) {
         printf("Old PIN: "); if (!fgets(oldPin,sizeof oldPin,stdin)) continue; oldPin[strcspn(oldPin,"\n")] = 0;
         printf("New PIN: "); if (!fgets(newPin,sizeof newPin,stdin)) continue; newPin[strcspn(newPin,"\n")] = 0;
         if (lockerChangePIN(oldPin,newPin)==0) printf("PIN changed.\n"); else printf("PIN change failed.\n");
+      } else if (choice == 7) {
+        char title[128], newTitle[128];
+        char ans[8];
+        unsigned char *buf; size_t cap, len; int done;
+        printf("Title to edit: "); if (!fgets(title,sizeof title,stdin)) continue; title[strcspn(title,"\n")] = 0;
+        printf("New title (leave empty to keep): "); if (!fgets(newTitle,sizeof newTitle,stdin)) continue; newTitle[strcspn(newTitle,"\n")] = 0;
+        printf("Enter new content (end with a single '.' on its own line):\n");
+        cap = 1024; len = 0; buf = (unsigned char*)malloc(cap); if (!buf) { printf("OOM\n"); continue; }
+        done = 0;
+        while (!done) {
+          char line[512]; size_t l;
+          if (!fgets(line, sizeof line, stdin)) { done = 1; break; }
+          if (line[0]=='.' && (line[1]=='\n' || line[1]=='\0')) { done = 1; break; }
+          l = strlen(line);
+          if (len + l > cap) { size_t newCap = cap*2 + l + 16; unsigned char *nb = (unsigned char*)realloc(buf, newCap); if (!nb) { free(buf); buf=NULL; printf("OOM\n"); break; } buf = nb; cap = newCap; }
+          memcpy(buf+len, (unsigned char*)line, l); len += l;
+        }
+        if (!buf) continue;
+        printf("Make public? (y/n): "); if (!fgets(ans, sizeof ans, stdin)) ans[0] = 'n';
+        if (lockerEditContent(title, newTitle[0]?newTitle:NULL, buf, (unsigned long)len, 1, 1, (ans[0]=='y'||ans[0]=='Y'))==0) printf("Edited %s\n", title); else printf("Edit failed (admin only or error)\n");
+        free(buf);
       } else {
         printf("Invalid choice.\n");
       }

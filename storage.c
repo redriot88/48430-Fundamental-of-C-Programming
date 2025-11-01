@@ -9,7 +9,7 @@
 #include "util.h"
 
 #define STORAGE_MAGIC 0x4C434B52U /* 'L' 'C' 'K' 'R' */
-#define STORAGE_VERSION 1
+#define STORAGE_VERSION 2
 
 static int write_u32(FILE *f, unsigned int v) {
     return fwrite(&v, sizeof(v), 1, f) == 1 ? 0 : -1;
@@ -46,12 +46,15 @@ int storageSaveAll(const char *path, const index_t *idx, const char *masterPin) 
     while (n) {
         indexEntry_t *e = &n->entry;
         unsigned int titleLen = (unsigned int)strlen(e->title);
+        unsigned int hash = e->hash;
         if (write_u32(f, titleLen) != 0) goto err;
         if (titleLen > 0u && fwrite(e->title, 1, titleLen, f) != titleLen) goto err;
         if (write_u32(f, (unsigned int)e->originalSize) != 0) goto err;
         if (write_u32(f, (unsigned int)e->storedSize) != 0) goto err;
+        if (write_u32(f, hash) != 0) goto err;
         /* pack flags (low 7 bits) and isPublic in high bit */
-        unsigned char meta = (unsigned char)(e->flags & 0x7Fu);
+        unsigned char meta;
+        meta = (unsigned char)(e->flags & 0x7Fu);
         if (e->isPublic) meta |= 0x80u;
         if (fwrite(&meta, 1, 1, f) != 1) goto err;
         if (e->storedSize > 0u) {
@@ -83,7 +86,7 @@ int storageLoadAll(const char *path, index_t *idx, char *outMasterPin, size_t ma
     if (magic != STORAGE_MAGIC) goto err;
 
     if (read_u32(f, &version) != 0) goto err;
-    if (version != STORAGE_VERSION) goto err;
+    if (version != 1u && version != 2u) goto err;
 
     if (read_u32(f, &file_count) != 0) goto err;
     if (read_u32(f, &pinLen) != 0) goto err;
@@ -111,10 +114,11 @@ int storageLoadAll(const char *path, index_t *idx, char *outMasterPin, size_t ma
     idx->count = 0;
 
     for (i = 0u; i < file_count; ++i) {
-        unsigned int titleLen = 0u;
+    unsigned int titleLen = 0u;
         char *title = NULL;
         unsigned int originalSize = 0u;
         unsigned int storedSize = 0u;
+    unsigned int hash = 0u;
         unsigned char flags = 0u;
         indexEntry_t entry;
 
@@ -126,6 +130,11 @@ int storageLoadAll(const char *path, index_t *idx, char *outMasterPin, size_t ma
 
         if (read_u32(f, &originalSize) != 0) { free(title); goto err; }
         if (read_u32(f, &storedSize) != 0) { free(title); goto err; }
+        if (version >= 2u) {
+            if (read_u32(f, &hash) != 0) { free(title); goto err; }
+        } else {
+            hash = 0u; /* legacy files have no stored hash */
+        }
         if (fread(&flags, 1, 1, f) != 1) { free(title); goto err; }
 
         memset(&entry, 0, sizeof(entry));
@@ -133,6 +142,7 @@ int storageLoadAll(const char *path, index_t *idx, char *outMasterPin, size_t ma
         entry.originalSize = (unsigned long)originalSize;
         entry.storedSize = (unsigned long)storedSize;
         entry.flags = (unsigned int)(flags & 0x7Fu);
+        entry.hash = hash;
         entry.isPublic = (flags & 0x80u) ? 1 : 0;
         entry.data = NULL;
         if (storedSize > 0u) {
