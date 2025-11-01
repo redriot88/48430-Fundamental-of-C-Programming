@@ -84,7 +84,10 @@ int main(int argc, char **argv) {
     char pin[64];
     int choice;
     printf("Login as:\n1. Admin\n2. Public\nSelect: ");
-    if (scanf("%d", &roleChoice) != 1) return 1; consumeLine();
+    if (scanf("%d", &roleChoice) != 1) {
+      return 1;
+    }
+    consumeLine();
     if (roleChoice == 1) {
       printf("Enter admin PIN: "); if (!fgets(pin, sizeof pin, stdin)) return 1; pin[strcspn(pin, "\n")] = 0;
       if (lockerOpen("locker.dat", pin) != 0) {

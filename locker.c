@@ -99,7 +99,10 @@ static indexNode_t *findNode(const char *title, indexNode_t **outPrev) {
         if (strcmp(n->entry.title, title) == 0) { if (outPrev) *outPrev = p; return n; }
         p = n; n = n->next;
     }
-    if (outPrev) *outPrev = NULL; return NULL;
+    if (outPrev) {
+        *outPrev = NULL;
+    }
+    return NULL;
 }
 
 int lockerAddFile(const char *filepath, const char *title, int compressFlag, int encryptFlag, int makePublic) {
